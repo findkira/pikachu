@@ -1,0 +1,18 @@
+{
+  "name": "pikachu-userbot",
+  "version": "1.0.0",
+  "description": "Modular Telegram userbot powered by GramJS",
+  "main": "index.js",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "input": "^1.0.1",
+    "telegram": "^2.22.2"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "author": "",
+  "license": "ISC"
+}
