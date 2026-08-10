@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: pikachu-userbot
+    env: node
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: API_ID
+        sync: false
+      - key: API_HASH
+        sync: false
+      - key: STRING_SESSION
+        sync: false
