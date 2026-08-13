@@ -5,10 +5,18 @@ const fs = require("fs");
 const path = require("path");
 const http = require("http");
 
-// Load variables from Render's environment settings
+// Load core credentials
 const apiId = parseInt(process.env.API_ID, 10);
 const apiHash = process.env.API_HASH;
 const stringSession = new StringSession(process.env.STRING_SESSION || "");
+
+// Load configuration variables with default fallbacks
+const MODE = (process.env.MODE || "private").toLowerCase();
+const STATUS = (process.env.STATUS || "on").toLowerCase();
+const AUTO_READ = (process.env.AUTO_READ || "off").toLowerCase();
+const AUTO_REPLY_STATUS = (process.env.AUTO_REPLY_STATUS || "off").toLowerCase();
+const AUTO_REPLY = process.env.AUTO_REPLY || "I am currently unavailable.";
+const PREFIX = process.env.PREFIX || ".";
 
 const commands = new Map();
 
@@ -31,7 +39,7 @@ function loadPlugins() {
     loadPlugins();
 
     if (!apiId || !apiHash || !process.env.STRING_SESSION) {
-        console.error("Missing credentials! Ensure API_ID, API_HASH, and STRING_SESSION are set.");
+        console.error("Missing credentials. Ensure API_ID, API_HASH, and STRING_SESSION are set.");
         process.exit(1);
     }
 
@@ -39,24 +47,54 @@ function loadPlugins() {
         connectionRetries: 5,
     });
 
-    // Connect automatically using the session string
     await client.connect();
-    console.log("Pikachu Userbot Engine Connected!");
+    console.log("Pikachu Userbot Engine Connected.");
 
-    // Send startup message to Saved Messages
-    await client.sendMessage("me", { message: "Pikachu Started ✓" });
+    await client.sendMessage("me", { message: "Pikachu Started" });
 
     client.addEventHandler(async (event) => {
-        const message = event.message;
-        if (!message || !message.text || !message.out) return;
+        // Halt all processing if the bot status is set to off
+        if (STATUS === "off") return;
 
-        if (message.text.startsWith(".")) {
-            const cmdName = message.text.slice(1).split(" ")[0].toLowerCase();
+        const message = event.message;
+        if (!message || !message.text) return;
+
+        const isFromMe = message.out;
+
+        // Auto-Read Implementation
+        if (!isFromMe && AUTO_READ === "on") {
+            try {
+                await client.markAsRead(message.chatId);
+            } catch (error) {
+                console.error("Failed to mark chat as read:", error);
+            }
+        }
+
+        // Auto-Reply Implementation (Restricted to private messages)
+        if (!isFromMe && AUTO_REPLY_STATUS === "on" && message.isPrivate) {
+            try {
+                await client.sendMessage(message.chatId, { message: AUTO_REPLY });
+            } catch (error) {
+                console.error("Failed to send auto-reply:", error);
+            }
+        }
+
+        // Command Router
+        if (message.text.startsWith(PREFIX)) {
+            // Block public command usage if MODE is set to private
+            if (MODE === "private" && !isFromMe) return;
+
+            const cmdName = message.text.slice(PREFIX.length).split(" ")[0].toLowerCase();
             const args = message.text.split(" ").slice(1);
 
             if (commands.has(cmdName)) {
+                const plugin = commands.get(cmdName);
+
+                // Block non-owners from executing owner-only plugins
+                if (plugin.isOwner && !isFromMe) return;
+
                 try {
-                    await commands.get(cmdName).execute(client, message, args);
+                    await plugin.execute(client, message, args);
                 } catch (error) {
                     console.error("Error executing plugin:", error);
                 }
@@ -65,7 +103,6 @@ function loadPlugins() {
     }, new NewMessage({}));
 })();
 
-// Health-check HTTP server to keep Render's free web service running
 const PORT = process.env.PORT || 8080;
 http.createServer((req, res) => {
     res.writeHead(200, { "Content-Type": "text/plain" });
