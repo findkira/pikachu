@@ -50,7 +50,19 @@ function loadPlugins() {
     await client.connect();
     console.log("Pikachu Userbot Engine Connected.");
 
-    await client.sendMessage("me", { message: "Pikachu Started" });
+    // Send formatted startup message to Saved Messages
+    const startupMessage = `⚡ **Pikachu Userbot Started Successfully** ⚡\n\n` +
+                           `• **Prefix:** \`${PREFIX}\`\n` +
+                           `• **Status:** \`${STATUS}\`\n` +
+                           `• **Mode:** \`${MODE}\`\n` +
+                           `• **Auto Read:** \`${AUTO_READ}\`\n` +
+                           `• **Auto Reply:** \`${AUTO_REPLY_STATUS}\``;
+
+    try {
+        await client.sendMessage("me", { message: startupMessage });
+    } catch (err) {
+        console.error("Failed to send startup message:", err);
+    }
 
     client.addEventHandler(async (event) => {
         // Halt all processing if the bot status is set to off
@@ -61,19 +73,25 @@ function loadPlugins() {
 
         const isFromMe = message.out;
 
-        // Auto-Read Implementation
+        // Auto-Read Implementation (Fixed Entity Lookup)
         if (!isFromMe && AUTO_READ === "on") {
             try {
-                await client.markAsRead(message.chatId);
+                const chatEntity = await message.getInputChat();
+                if (chatEntity) {
+                    await client.markAsRead(chatEntity);
+                }
             } catch (error) {
                 console.error("Failed to mark chat as read:", error);
             }
         }
 
-        // Auto-Reply Implementation (Restricted to private messages)
+        // Auto-Reply Implementation (Fixed Entity Lookup)
         if (!isFromMe && AUTO_REPLY_STATUS === "on" && message.isPrivate) {
             try {
-                await client.sendMessage(message.chatId, { message: AUTO_REPLY });
+                const senderEntity = await message.getInputSender();
+                if (senderEntity) {
+                    await client.sendMessage(senderEntity, { message: AUTO_REPLY });
+                }
             } catch (error) {
                 console.error("Failed to send auto-reply:", error);
             }
